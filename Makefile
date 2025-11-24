@@ -89,6 +89,31 @@ train-debug: ## Train with debug mode
 	@echo "${GREEN}Training with debug mode...${RESET}"
 	python scripts/train.py --config configs/medium_model.yaml --debug
 
+## Data
+
+generate-data: ## Generate sample test data
+	@echo "${GREEN}Generating sample data...${RESET}"
+	@python3 -c "import numpy" 2>/dev/null || (echo "${YELLOW}Installing data dependencies...${RESET}" && pip install numpy pandas pyarrow)
+	python3 generate_sample_data.py
+
+check-data: ## Check if data exists
+	@echo "${GREEN}Checking data files...${RESET}"
+	@if [ -f data/train.parquet ]; then \
+		echo "  ✓ train.parquet exists"; \
+	else \
+		echo "  ✗ train.parquet missing (run 'make generate-data')"; \
+	fi
+	@if [ -f data/val.parquet ]; then \
+		echo "  ✓ val.parquet exists"; \
+	else \
+		echo "  ✗ val.parquet missing (run 'make generate-data')"; \
+	fi
+	@if [ -f data/test.parquet ]; then \
+		echo "  ✓ test.parquet exists"; \
+	else \
+		echo "  ✗ test.parquet missing (run 'make generate-data')"; \
+	fi
+
 ## Utilities
 
 tensorboard: ## Start TensorBoard
