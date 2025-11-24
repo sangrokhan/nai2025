@@ -1,0 +1,127 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-check:
+    name: PR Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Run quick validation
+      run: |
+        echo "=== Quick PR Validation ==="
+        python3 check_all.py
+
+    - name: Check PR title
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        echo "PR Title: $PR_TITLE"
+
+        # Check if title is not empty
+        if [ -z "$PR_TITLE" ]; then
+          echo "❌ PR title is empty"
+          exit 1
+        fi
+
+        echo "✓ PR title is valid"
+
+    - name: Check for test files
+      run: |
+        # If code changes include src/ files, check if tests exist
+        git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^src/" || exit 0
+
+        TEST_COUNT=$(find tests/ -name "test_*.py" | wc -l)
+        if [ "$TEST_COUNT" -lt 4 ]; then
+          echo "⚠ Warning: Only $TEST_COUNT test files found"
+        else
+          echo "✓ Found $TEST_COUNT test files"
+        fi
+
+    - name: Check for documentation
+      run: |
+        if [ ! -f "README.md" ]; then
+          echo "❌ README.md is missing"
+          exit 1
+        fi
+
+        if [ ! -f "claude.md" ]; then
+          echo "⚠ Warning: claude.md is missing (AI assistant guide)"
+        fi
+
+        echo "✓ Documentation files present"
+
+    - name: Calculate code metrics
+      run: |
+        echo "=== Code Metrics ==="
+
+        PY_FILES=$(find src/ tests/ scripts/ -name "*.py" | wc -l)
+        echo "Python files: $PY_FILES"
+
+        TOTAL_LINES=$(find src/ tests/ scripts/ -name "*.py" -exec wc -l {} + | tail -1 | awk '{print $1}')
+        echo "Total lines: $TOTAL_LINES"
+
+        SRC_FILES=$(find src/ -name "*.py" | wc -l)
+        TEST_FILES=$(find tests/ -name "*.py" | wc -l)
+
+        echo "Source files: $SRC_FILES"
+        echo "Test files: $TEST_FILES"
+
+        if [ "$TEST_FILES" -eq 0 ]; then
+          echo "❌ No test files found"
+          exit 1
+        fi
+
+        TEST_RATIO=$(echo "scale=2; $TEST_FILES / $SRC_FILES" | bc)
+        echo "Test/Source ratio: $TEST_RATIO"
+
+    - name: Check for common issues
+      run: |
+        echo "=== Checking for common issues ==="
+
+        # Check for print statements in source code (should use logging)
+        PRINT_COUNT=$(grep -r "print(" src/ --include="*.py" | grep -v "#.*print(" | wc -l || true)
+        if [ "$PRINT_COUNT" -gt 5 ]; then
+          echo "⚠ Warning: Found $PRINT_COUNT print() statements in src/"
+          echo "  Consider using logging instead of print()"
+        fi
+
+        # Check for TODO comments
+        TODO_COUNT=$(grep -r "TODO\|FIXME\|XXX" src/ tests/ scripts/ --include="*.py" | wc -l || true)
+        if [ "$TODO_COUNT" -gt 0 ]; then
+          echo "⚠ Info: Found $TODO_COUNT TODO/FIXME comments"
+        fi
+
+        echo "✓ Common issues check completed"
+
+  summary:
+    name: PR Validation Summary
+    runs-on: ubuntu-latest
+    needs: pr-check
+    if: always()
+
+    steps:
+    - name: Summary
+      run: |
+        echo "=== PR Validation Summary ==="
+
+        if [ "${{ needs.pr-check.result }}" == "success" ]; then
+          echo "✅ All PR validation checks passed!"
+          echo "This PR is ready for review."
+        else
+          echo "❌ Some PR validation checks failed."
+          echo "Please review the errors above and fix them."
+          exit 1
+        fi
