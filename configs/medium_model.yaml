@@ -1,0 +1,44 @@
+# Medium Model Configuration (Recommended)
+# Best balance of performance and computational cost
+
+model:
+  channel_dim: 128
+  num_transformer_layers: 2
+  num_attention_heads: 8
+  predictor_hidden_dim: 256
+  predictor_num_layers: 3
+  dropout: 0.15
+
+training:
+  batch_size: 128
+  num_epochs: 100
+  learning_rate: 5.0e-4
+  weight_decay: 5.0e-5
+  gradient_clip_norm: 1.0
+
+loss:
+  main_weight: 1.0
+  physical_aux_weights:
+    se: 0.25
+    ri_dist: 0.15
+    quality: 0.15
+  la_aux_weights:
+    mcs_avg: 0.15
+    su_ratio: 0.08
+
+scheduler:
+  type: ReduceLROnPlateau
+  mode: min
+  factor: 0.5
+  patience: 5
+  min_lr: 1.0e-6
+
+early_stopping:
+  patience: 15
+  min_delta: 1.0e-4
+
+paths:
+  train_data: ./data/train.parquet
+  val_data: ./data/val.parquet
+  save_dir: ./checkpoints/medium_model
+  log_dir: ./runs/medium_model
